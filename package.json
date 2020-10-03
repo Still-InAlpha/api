@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "yarn": "^1.22.10"
   },
   "devDependencies": {
     "eslint": ">=6.2.2",

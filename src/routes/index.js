@@ -1,9 +1,9 @@
 const { Router } = require('express')
 
-const demoRouter = require('./demo.routes')
+const schedulePlannerRouter = require('./schedule.routes')
 
 const router = Router()
 
-router.use(demoRouter)
+router.use(schedulePlannerRouter)
 
 module.exports = router

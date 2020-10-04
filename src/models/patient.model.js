@@ -13,7 +13,6 @@ var Patient = function (patient) {
 }
 
 Patient.findById = function (id, result) {
-  console.log("didn't get here")
   dbConn.query('SELECT * FROM patients WHERE id = ? ', id, function (err, res) {
     if (err) {
       console.log('error: ', err)

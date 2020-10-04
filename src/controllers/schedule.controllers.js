@@ -32,7 +32,6 @@ module.exports = class ScheduleControllers {
     return polynomial_sum
   }
 
-  
   // FOR 0.5 miligrams of Melatonin
   FinderNewtonMethod(initial_value, y_value, func, derivative){
     const iterations = 10
@@ -164,6 +163,6 @@ module.exports = class ScheduleControllers {
         break;
     }
     // Subjective times are relative to user's DLMO (Dim-Light Melatonin Onset)
-    melatoninHalfMgSubjectiveTime = 
+    melatoninHalfMgSubjectiveTime =
   }
 }

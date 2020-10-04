@@ -34,7 +34,7 @@ module.exports = class ScheduleControllers {
 
   
   // FOR 0.5 miligrams of Melatonin
-  FinderNewtonMethod(initial_value, value, func, derivative){
+  FinderNewtonMethod(initial_value, y_value, func, derivative){
     const iterations = 10
     const x0 = initial_value
     let x = 0
@@ -43,7 +43,7 @@ module.exports = class ScheduleControllers {
         x = x0
       }
       else {
-        x = x - (func(x)-value)/derivative(x)
+        x = x - (func(x)-y_value)/derivative(x)
       }
       return x
     }
@@ -56,30 +56,36 @@ module.exports = class ScheduleControllers {
     const melatonin_onset = Date(this.currentDate.getUTCFullYear(), this.currentDate.getUTCMonth(), this.currentDate.getUTCDate(), melatonin_onset_hour, this.currentDate.getUTCMinutes(), this.currentDate.getUTCSeconds(), this.currentDate.getUTCMilliseconds())
 
   }
-//Como a curva é necessariamente periódica (o polinômio se repete a cada 24h), há garantia que se há horas de delay e advance na mesma função, é provável que haja horas de delay mímimas e de advance máximas contidas no intervalo
+//Como a curva é necessariamente periódica (o polinômio se repete a cada 24h), há garantia que se há horas de delay e advance na mesma função, é provável que haja horas de delay mímimas e de advance máximas contidas no intervalo. Vamos assumir que tal possibilidade seja verdade
   calculateCriticalShiftHour(derivative, derivative2, type){
     for(let intial = -12; initial < 12; initial++) {
       critical_x = FinderNewtonMethod(initial, 0, derivative, derivative2)
       critical_point = this.calculatePRC(critical_x, parameters)
       switch(type) {
         case 'delay':
+        // mínimo local abaixo de 0
           if (critical_point < 0){
-            return critical_x
+            if (this.calculatePRC(critical_x, derivative2) > 0 && critical_x >= -12 && critical_x < 12){
+              return critical_x
+            }
           }
           break;
         case 'advance':
+        // máximo local acima de 0
           if (critical_point >= 0){
-            return critical_x
+            if (this.calculatePRC(critical_x, derivative2) < 0 && critical_x >= -12 && critical_x < 12){
+              return critical_x
+            }
           }
           break;
       }
     }
     switch(type) {
       case 'delay':
-        throw 'A função não apresenta hora de delay'
+        throw 'A função não apresenta hora minima de delay no intervalo de 24h'
         break;
       case 'advance':
-        throw 'A função não apresenta hora de advance'
+        throw 'A função não apresenta hora minima de advance no intervalo de 24h'
         break;
     }
   }
@@ -88,46 +94,46 @@ module.exports = class ScheduleControllers {
   // calculateCurrentShift só funciona pra funções com picos acima de shift = 0 e vales abaixo de shift = 0, ou seja, não funciona para a droga PF670462
 
 
-  calculateCurrentShift({intended_sleep_time}, {sleep_start}, {target_date}, parameters, derivative, derivative2){
+  calculateCurrentShiftAndHour({intended_sleep_time}, {sleep_start}, parameters, derivative, derivative2){
     currentDate = new Date()
     const desiredShiftHours = sleep_start.getUTCHours() - intended_sleep_time.getUTCHours()
     const desiredShiftMinutes = sleep_start.getUTCMinutes() - intended_sleep_time.getUTCMinutes()
     let currentShift = 0
     let shiftRemainder = 0
-    const minimumShift = this.calculatePRC(this.calculateCriticalShiftHours(derivative, derivative2, 'delay'), parameters)
-    const maximumShift = this.calculatePRC(this.calculateCriticalShiftHours(derivative, derivative2, 'advance'), parameters)
-    if (desiredShiftHours < 0){
-      const decimalShift = desiredShiftHours - Math.abs(desiredShiftMinutes/60)
-      if (minimumShift < desiredShiftHours) {
+    let shiftHour
+    const minimumShiftHour = this.calculateCriticalShiftHours(derivative, derivative2, 'delay')
+    const maximumShiftHour = this.calculateCriticalShiftHours(derivative, derivative2, 'advance')
+    const minimumShift = this.calculatePRC(minimumShiftHour, parameters)
+    const maximumShift = this.calculatePRC(maximumShiftHour, parameters)
+    if (desiredShiftHours <= 0){
+      let decimalShift = desiredShiftHours - Math.abs(desiredShiftMinutes/60)
+      if (minimumShift < decimalShift) {
         currentShift = decimalShift
         shiftRemainder = 0
+        shiftHour = this.FinderNewtonMethod(maximumShiftHour, decimalShift, parameters, derivative)
       }
       else {
         currentShift = minimumShift
         shiftRemainder = decimalShift - minimumShift
+        shiftHour =  minimumShiftHour
       }
     }
-    if (desiredShiftHours > 0){
-      const decimalShift = desiredShiftHours + Math.abs(desiredShiftMinutes/60)
-      if (maximumShift > desiredShiftHours) {
+    if (desiredShiftHours > 0) {
+      let decimalShift = desiredShiftHours + Math.abs(desiredShiftMinutes/60)
+      if (maximumShift > decimalShift) {
         currentShift = decimalShift
         shiftRemainder = 0
+        shiftHour = this.FinderNewtonMethod(maximumShiftHour, decimalShift, parameters, derivative)
       }
       else {
         currentShift = maximumShift
         shiftRemainder = decimalShift - minimumShift
-      }
-    if (desiredShiftHours === 0){
-      if (desiredShiftMinutes < 0){
-        
-      }
-      else {
-        
+        shiftHour = maximumShiftHour
       }
     }
-    }
-    return currentShift
+    return [currentShift, shiftHour, shiftRemainder]
   }
+
   // shifterProportions: array de fatores de mudança no horário do sono
   // O formato de shifterProportions é: [Melatonin 3mg proportion (float), Melatonin 0.5 mg proportion (float), 1h of Aerobic Exercise proportion (float)]
   // proporção 1 + proporção 2 + proporção 3 = 1.
@@ -147,7 +153,13 @@ module.exports = class ScheduleControllers {
         break;
       case 'advance':
         if(selectedShifters.includes('1h of Aerobic Exercise')){
-          oneHourAerobicExerciseShift = this.calculateCriticalShiftHour(this.oneHourAerobicExercisePRCDervative, this.oneHourAerobicExercisePRCDervative2, 'delay')
+          oneHourAerobicExerciseShift = this.calculateCriticalShiftHour(this.oneHourAerobicExercisePRCDervative, this.oneHourAerobicExercisePRCDervative2, 'advance')
+        }
+        if(selectedShifters.includes('Melatonin 0.5mg')){f
+          melatoninHalfMgShift = this.calculateCriticalShiftHour(this.melatoninExposurePRChalfMgDerivative, this.melatoninExposurePRChalfMgDerivative2, 'advance')
+        }
+        if(selectedShifters.includes('Melatonin 3mg')){
+          melatonin3MgShift = this.calculateCriticalShiftHour(this.melatoninExposurePRC3mgDerivative, this.melatoninExposurePRC3mgDerivative2, 'advance')
         }
         break;
     }

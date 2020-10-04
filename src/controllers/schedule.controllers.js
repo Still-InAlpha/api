@@ -2,8 +2,8 @@ module.exports = class ScheduleControllers {
   // Todas as funções são com relação ao DLMO (Dim light melatonin onset)
 
   oneHourAerobicExercisePRC = [0, -0.0002737, 0.0007096, 0.04327, -0.06959, -0.8871]
-  oneHourAerobicExercisePRCDervative = [0, -0.0010948, -0.0021288, 0.08654, -0.06959]
-  oneHourAerobicExercisePRCDervative2 = [0, -0.0032844, -0.0042576, 0.08654]
+  oneHourAerobicExercisePRCDerivative = [0, -0.0010948, -0.0021288, 0.08654, -0.06959]
+  oneHourAerobicExercisePRCDerivative2 = [0, -0.0032844, -0.0042576, 0.08654]
   // FOR 3 miligrams of Melatonin
   melatoninExposurePRC3mg = [1.978*10**(-5), -0.0003338, 0.0002579, 0.01488, -0.1938, 0.5724]
   melatoninExposurePRC3mgDerivative = [0.0000989, -0.0013352, 0.0007737, 0.02976, -0.1938]
@@ -48,12 +48,12 @@ module.exports = class ScheduleControllers {
     }
   }
 
-  calculateMelatoninMidpoint({sleep_start}){
+  calculateMelatoninOnsetHour({sleep_start}){
     // sleep start is on average about 2 hours after urinal melatonin metabolites begin to appear in urine, under dim light conditions
-    currentDate = new Date()
-    const melatonin_onset_hour = sleep_start.getUTCHours() - 2
-    const melatonin_onset = Date(this.currentDate.getUTCFullYear(), this.currentDate.getUTCMonth(), this.currentDate.getUTCDate(), melatonin_onset_hour, this.currentDate.getUTCMinutes(), this.currentDate.getUTCSeconds(), this.currentDate.getUTCMilliseconds())
-
+    const melatonin_onset_hour = parseInt(sleep_start.split(':')[0]) - 2
+    const melatonin_onset_minute = parseInt(sleep_start.split(':')[1])
+    const melatonin_onset = melatonin_onset_hour + melatonin_onset_minute/60
+    return melatonin_onset
   }
 //Como a curva é necessariamente periódica (o polinômio se repete a cada 24h), há garantia que se há horas de delay e advance na mesma função, é provável que haja horas de delay mímimas e de advance máximas contidas no intervalo. Vamos assumir que tal possibilidade seja verdade
   calculateCriticalShiftHour(derivative, derivative2, type){
@@ -92,11 +92,11 @@ module.exports = class ScheduleControllers {
   // type é uma string, 'delay' ou 'advance'
   // calculateCurrentShift só funciona pra funções com picos acima de shift = 0 e vales abaixo de shift = 0, ou seja, não funciona para a droga PF670462
 
-
-  calculateCurrentShiftAndHour({intended_sleep_time}, {sleep_start}, parameters, derivative, derivative2){
+  // hours no formato '00:45'
+  calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, parameters, derivative, derivative2, work_start, work_end){
     currentDate = new Date()
-    const desiredShiftHours = sleep_start.getUTCHours() - intended_sleep_time.getUTCHours()
-    const desiredShiftMinutes = sleep_start.getUTCMinutes() - intended_sleep_time.getUTCMinutes()
+    const desiredShiftHours = parseInt(sleep_start.split(':')[0]) - parseInt(intended_sleep_time.split(':')[0])
+    const desiredShiftMinutes = parseInt(sleep_start.split(':')[1]) - parseInt(intended_sleep_time.split(':')[1])
     let currentShift = 0
     let shiftRemainder = 0
     let shiftHour
@@ -137,32 +137,24 @@ module.exports = class ScheduleControllers {
   // O formato de shifterProportions é: [Melatonin 3mg proportion (float), Melatonin 0.5 mg proportion (float), 1h of Aerobic Exercise proportion (float)]
   // proporção 1 + proporção 2 + proporção 3 = 1.
 
-  calculateTimes(selectedShifters, shifterProportions, parameters, type, desiredShift){
-    switch(type){
-      case 'delay':
-        if(selectedShifters.includes('1h of Aerobic Exercise')){
-          oneHourAerobicExerciseShift = this.calculateCriticalShiftHour(this.oneHourAerobicExercisePRCDervative, this.oneHourAerobicExercisePRCDervative2, 'delay')
-        }
-        if(selectedShifters.includes('Melatonin 0.5mg')){f
-          melatoninHalfMgShift = this.calculateCriticalShiftHour(this.melatoninExposurePRChalfMgDerivative, this.melatoninExposurePRChalfMgDerivative2, 'delay')
-        }
-        if(selectedShifters.includes('Melatonin 3mg')){
-          melatonin3MgShift = this.calculateCriticalShiftHour(this.melatoninExposurePRC3mgDerivative, this.melatoninExposurePRC3mgDerivative2, 'delay')
-        }
-        break;
-      case 'advance':
-        if(selectedShifters.includes('1h of Aerobic Exercise')){
-          oneHourAerobicExerciseShift = this.calculateCriticalShiftHour(this.oneHourAerobicExercisePRCDervative, this.oneHourAerobicExercisePRCDervative2, 'advance')
-        }
-        if(selectedShifters.includes('Melatonin 0.5mg')){f
-          melatoninHalfMgShift = this.calculateCriticalShiftHour(this.melatoninExposurePRChalfMgDerivative, this.melatoninExposurePRChalfMgDerivative2, 'advance')
-        }
-        if(selectedShifters.includes('Melatonin 3mg')){
-          melatonin3MgShift = this.calculateCriticalShiftHour(this.melatoninExposurePRC3mgDerivative, this.melatoninExposurePRC3mgDerivative2, 'advance')
-        }
-        break;
-    }
+  calculateTimes(selectedShifters, shifterProportions, parameters, type, intended_sleep_time, sleep_start, work_start, work_end){
+      if(selectedShifters.includes('1h of Aerobic Exercise')){
+        oneHourAerobicExerciseShift = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.oneHourAerobicExercisePRC, this.oneHourAerobicExercisePRCDerivative, this.oneHourAerobicExercisePRCDerivative2, work_start, work_end)[0]
+        oneHourAerobicExerciseShiftHour = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.oneHourAerobicExercisePRC, this.oneHourAerobicExercisePRCDerivative, this.oneHourAerobicExercisePRCDerivative2, work_start, work_end)[1]
+        oneHourAerobicExerciseShiftRemainder = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.oneHourAerobicExercisePRC, this.oneHourAerobicExercisePRCDerivative, this.oneHourAerobicExercisePRCDerivative2, work_start, work_end)[2]
+      }
+      if(selectedShifters.includes('Melatonin 0.5mg')){f
+        melatoninExposureHalfMgShift = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.melatoninExposurePRChalfMg, this.melatoninExposurePRChalfMgDerivative, this.melatoninExposurePRChalfMgDerivative2, work_start, work_end)[0]
+        melatoninExposureHalfMgShiftHour = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.melatoninExposurePRChalfMg, this.melatoninExposurePRChalfMgDerivative, this.melatoninExposurePRChalfMgDerivative2, work_start, work_end)[1]
+        melatoninExposureHalfMgShiftRemainder = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.melatoninExposurePRChalfMg, this.melatoninExposurePRChalfMgDerivative, this.melatoninExposurePRChalfMgDerivative2, work_start, work_end)[2]
+      }
+      if(selectedShifters.includes('Melatonin 3mg')){
+        melatoninExposure3mgShift = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.melatoninExposurePRC3mg, this.melatoninExposurePRC3mgDerivative, this.melatoninExposurePRC3mgDerivative2, work_start, work_end)[0]
+        melatoninExposure3mgShiftHour = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.melatoninExposurePRC3mg, this.melatoninExposurePRC3mgDerivative, this.melatoninExposurePRC3mgDerivative2, work_start, work_end)[1]
+        melatoninExposure3mgShiftRemainder = calculateCurrentShiftAndHour(intended_sleep_time, sleep_start, this.melatoninExposurePRC3mg, this.melatoninExposurePRC3mgDerivative, this.melatoninExposurePRC3mgDerivative2, work_start, work_end)[2]
+      }
+
     // Subjective times are relative to user's DLMO (Dim-Light Melatonin Onset)
-    melatoninHalfMgSubjectiveTime =
+    melatonin_onset
   }
 }

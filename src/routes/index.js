@@ -1,6 +1,6 @@
 const { Router } = require('express')
 
-const schedulePlannerRouter = require('./schedule.routes')
+const schedulePlannerRouter = require('./patient.routes')
 
 const router = Router()
 

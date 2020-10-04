@@ -32,8 +32,5 @@ schedulePlannerRouter.post('/schedule_planner', (req, res) => {
   )
 })
 
-schedulePlannerRouter.get('/test', (req, res) => {
-  const hora = 0.5
-  return res.send(scheduleController.yFinderNewtonMethod(hora, scheduleController.oneHourAerobicExercisePRC, scheduleController.oneHourAerobicExercisePRCDervative))
-})
+
 module.exports = schedulePlannerRouter

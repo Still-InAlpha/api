@@ -1,5 +1,5 @@
 module.exports = class ScheduleControllers {
-  // Todas as funções são com relação ao ponto médio da melatonina
+  // Todas as funções são com relação ao DLMO (Dim light melatonin onset)
 
   oneHourAerobicExercisePRC = [0, -0.0002737, 0.0007096, 0.04327, -0.06959, -0.8871]
   oneHourAerobicExercisePRCDervative = [0, -0.0010948, -0.0021288, 0.08654, -0.06959]
